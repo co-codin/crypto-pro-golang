@@ -28,13 +28,13 @@ const (
 
 func sampleSignInfo() domain.CertificateInfo {
 	issuer := domain.NewNameParts()
-	issuer.Set("CN", "Synthetic Test CA")
-	issuer.Set("O", "ARB")
+	issuer.Set("CN", "Test CA")
+	issuer.Set("O", "Example Org")
 	subject := domain.NewNameParts()
-	subject.Set("SN", "Иванов")
-	subject.Set("G", "Иван Иванович")
-	subject.Set("CN", "Тестовый подписант")
-	subject.Set("O", "АРБ")
+	subject.Set("CN", "Test Signer")
+	subject.Set("O", "Example Org")
+	subject.Set("SN", "Doe")
+	subject.Set("G", "Jane")
 	return domain.CertificateInfo{
 		Issuer:       issuer.String(),
 		IssuerParts:  issuer,

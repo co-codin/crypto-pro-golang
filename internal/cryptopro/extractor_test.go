@@ -20,7 +20,7 @@ func TestExtractsRsaTestingCMSCertificate(t *testing.T) {
 	if len(certs) != 1 {
 		t.Fatalf("got %d certificates", len(certs))
 	}
-	if _, ok := certs["632e5895714dc429ea6999a4232b7c294f92482b"]; !ok {
+	if _, ok := certs["193db102ca50b57c47f1afbbb6c5bc4c71d09c2b"]; !ok {
 		t.Fatalf("missing expected fingerprint, got %v", keys(certs))
 	}
 }
@@ -39,7 +39,7 @@ func TestSyntheticVerifierReadsAttachedSample(t *testing.T) {
 	if !result.Valid || result.SignInfo == nil {
 		t.Fatal("expected synthetic success")
 	}
-	if result.SignInfo.SHA1 != "632e5895714dc429ea6999a4232b7c294f92482b" {
+	if result.SignInfo.SHA1 != "193db102ca50b57c47f1afbbb6c5bc4c71d09c2b" {
 		t.Fatalf("sha1 %s", result.SignInfo.SHA1)
 	}
 }

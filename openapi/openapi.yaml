@@ -77,15 +77,16 @@ paths:
                   value:
                     isSignValid: true
                     signInfo:
-                      issuer: CN=Тестовый УЦ, O=АРБ
+                      issuer: CN=Test CA, O=Example Org
                       issuerParts:
-                        CN: Тестовый УЦ
-                        O: АРБ
-                      subject: SN=Иванов, G=Иван Иванович, O=АРБ
+                        CN: Test CA
+                        O: Example Org
+                      subject: CN=Test Signer, O=Example Org, SN=Doe, G=Jane
                       subjectParts:
-                        SN: Иванов
-                        G: Иван Иванович
-                        O: АРБ
+                        CN: Test Signer
+                        O: Example Org
+                        SN: Doe
+                        G: Jane
                       serial: '123456789'
                       hexSerial: 075BCD15
                       sha1: 0123456789abcdef0123456789abcdef01234567
