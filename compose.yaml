@@ -1,0 +1,27 @@
+services:
+  crypto-pro:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crypto-pro:dev
+    ports:
+      - "18080:18080"
+    environment:
+      HTTP_ADDR: ":18080"
+      CRYPTOPRO_SIGNATURE_VERIFY_ENABLED: "1"
+      # Licensed CryptoPro CSP is not shipped. synthetic extracts the CMS
+      # certificate and returns signInfo without running cryptcp.
+      CRYPTOPRO_VERIFIER: synthetic
+      CRYPTOPRO_STALE_CRL_FALLBACK: "0"
+      CRYPTOPRO_PROCESS_TIMEOUT_SECONDS: "30"
+      CRYPTOPRO_REQUEST_DEADLINE_SECONDS: "45"
+    # When a licensed CSP runtime is available later, switch to:
+    #
+    #   CRYPTOPRO_VERIFIER: cryptopro
+    #   CRYPTOPRO_CRYPTCP_PATH: /opt/cprocsp/bin/amd64/cryptcp
+    #   volumes:
+    #     - csp-state:/var/opt/cprocsp
+    #     - /opt/cprocsp/bin:/opt/cprocsp/bin:ro
+    #
+    # Do not copy licensed CSP archives into this repository.
+    restart: unless-stopped
