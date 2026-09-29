@@ -1,0 +1,336 @@
+openapi: 3.1.0
+info:
+  title: Crypto Pro API
+  summary: API проверки CAdES-подписей CryptoPro.
+  description: |
+    Контракт описывает внешний HTTP-интерфейс сервиса проверки CMS/CAdES.
+    Сертификат подписанта извлекается из подписи только на время запроса. API
+    никогда не принимает закрытый ключ, PFX, PIN, имя контейнера ключа или
+    произвольные параметры команд CryptoPro.
+
+    Это автономный Go-порт Symfony-сервиса `example/crypto-pro`. Путь, схемы и
+    коды совместимы с `validation-client`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:18080
+    description: Локальный Docker Compose / go run.
+tags:
+  - name: Подписи
+    description: Проверка присоединённых и отсоединённых CAdES-подписей.
+paths:
+  /api/crypto/v1/validate:
+    post:
+      operationId: validateCryptoProSignature
+      summary: Проверить присоединённую или отсоединённую CAdES-подпись.
+      description: |
+        Совместимый с `validation-client` контракт принимает
+        Base64-кодированную CMS/CAdES-подпись. Для `detached` поле `file`
+        обязательно и содержит Base64 точных подписанных байтов; для `attached`
+        оно отсутствует. Поддерживается формат `bes`.
+
+        Сертификат подписанта извлекается из CMS во временный закрытый каталог.
+        CryptoPro выбирает точный сертификат по SHA-1 внутри CMS. Для CAdES-BES
+        финальная проверка выполняется с
+        `-errchain -nonet`, поэтому доверенные корни и кешированные данные отзыва
+        должны быть подготовлены в окружении. В ответе всегда возвращаются
+        совместимые поля `isSignValid`, `signInfo` или `error`, а в успешном
+        HTTP-ответе — заголовок `X-Guid`.
+
+        Прикладная авторизация отсутствует. Заголовок `Authorization`, включая
+        Bearer из backend-service, не требуется и игнорируется; доступ
+        ограничивается внешней сетевой границей.
+      tags:
+        - Подписи
+      security: []
+      x-feature-flag: CRYPTOPRO_SIGNATURE_VERIFY_ENABLED
+      x-max-request-bytes: 33554432
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureValidationRequest'
+            examples:
+              attachedBes:
+                value:
+                  type: attached
+                  format: bes
+                  sign: MIAGCSqGSIb3DQEHAqCAMIACAQEx...
+              detachedBes:
+                value:
+                  type: detached
+                  format: bes
+                  sign: MIAGCSqGSIb3DQEHAqCAMIACAQEx...
+                  file: ZG9jdW1lbnQgYnl0ZXM=
+      responses:
+        '200':
+          description: Проверка завершена с однозначным положительным или отрицательным результатом.
+          headers:
+            X-Guid:
+              $ref: '#/components/headers/ResponseGuid'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureValidationResponse'
+              examples:
+                verified:
+                  value:
+                    isSignValid: true
+                    signInfo:
+                      issuer: CN=Test CA, O=Example Org
+                      issuerParts:
+                        CN: Test CA
+                        O: Example Org
+                      subject: CN=Test Signer, O=Example Org, SN=Doe, G=Jane
+                      subjectParts:
+                        CN: Test Signer
+                        O: Example Org
+                        SN: Doe
+                        G: Jane
+                      serial: '123456789'
+                      hexSerial: 075BCD15
+                      sha1: 0123456789abcdef0123456789abcdef01234567
+                      validFrom: '2026-01-01T00:00:00+00:00'
+                      validTo: '2027-01-01T00:00:00+00:00'
+                      subjectKeyId: 89abcdef0123456789abcdef0123456789abcdef
+                mismatch:
+                  value:
+                    isSignValid: false
+                    error:
+                      code: '0x200001F9'
+                      message: The signature is invalid.
+        '400':
+          description: JSON, Base64, тип, формат или сочетание полей не соответствует контракту.
+          headers:
+            X-Guid:
+              $ref: '#/components/headers/ResponseGuid'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationServiceErrorResponse'
+              example:
+                error:
+                  code: 400
+                  message: Invalid signature validation request.
+        '502':
+          description: CryptoPro не смог извлечь сертификат, проверить подпись, цепочку или данные отзыва.
+          headers:
+            X-Guid:
+              $ref: '#/components/headers/ResponseGuid'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationServiceErrorResponse'
+        '503':
+          description: Проверка отключена, неправильно настроена, недоступна, прервана либо имеет неопределённый результат.
+          headers:
+            X-Guid:
+              $ref: '#/components/headers/ResponseGuid'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationServiceErrorResponse'
+        '504':
+          description: CryptoPro не завершил проверку подписи за отведённое время.
+          headers:
+            X-Guid:
+              $ref: '#/components/headers/ResponseGuid'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationServiceErrorResponse'
+components:
+  headers:
+    ResponseGuid:
+      description: Идентификатор ответа, обязательный для совместимости с validation-client.
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    SignatureValidationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - format
+        - sign
+      properties:
+        type:
+          type: string
+          enum:
+            - attached
+            - detached
+        format:
+          type: string
+          enum:
+            - bes
+        sign:
+          type: string
+          minLength: 4
+          maxLength: 16777216
+          contentEncoding: base64
+          contentMediaType: application/pkcs7-signature
+          description: Base64 непустой CMS/CAdES SignedData размером после декодирования не более 12 MiB. Пробелы и переводы строк игнорируются.
+        file:
+          type: string
+          maxLength: 13981016
+          contentEncoding: base64
+          contentMediaType: application/octet-stream
+          description: Base64 точных подписанных байтов размером не более 10 MiB; обязателен только для detached. Пробелы и переводы строк игнорируются.
+      oneOf:
+        - title: Присоединённая подпись
+          required:
+            - type
+          properties:
+            type:
+              const: attached
+          not:
+            required:
+              - file
+        - title: Отсоединённая подпись
+          required:
+            - type
+            - file
+          properties:
+            type:
+              const: detached
+    SignatureValidationResponse:
+      oneOf:
+        - $ref: '#/components/schemas/ValidSignatureResponse'
+        - $ref: '#/components/schemas/InvalidSignatureResponse'
+    ValidSignatureResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - isSignValid
+        - signInfo
+      properties:
+        isSignValid:
+          const: true
+        signInfo:
+          $ref: '#/components/schemas/CertificateInfo'
+    InvalidSignatureResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - isSignValid
+        - error
+      properties:
+        isSignValid:
+          const: false
+        error:
+          type: object
+          additionalProperties: false
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              const: '0x200001F9'
+            message:
+              type: string
+              const: The signature is invalid.
+    CertificateInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - issuer
+        - issuerParts
+        - subject
+        - subjectParts
+        - serial
+        - hexSerial
+        - sha1
+        - validFrom
+        - validTo
+        - subjectKeyId
+      properties:
+        issuer:
+          type: string
+          minLength: 1
+        issuerParts:
+          $ref: '#/components/schemas/DistinguishedNameParts'
+        subject:
+          type: string
+          minLength: 1
+        subjectParts:
+          $ref: '#/components/schemas/DistinguishedNameParts'
+        serial:
+          type: string
+          minLength: 1
+        hexSerial:
+          type: string
+          pattern: '^[A-F0-9]+$'
+        sha1:
+          type: string
+          pattern: '^[a-f0-9]{40}$'
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+        subjectKeyId:
+          type: string
+          pattern: '^$|^[a-f0-9]+$'
+    DistinguishedNameParts:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        INN:
+          type: string
+        INNLE:
+          type: string
+        OGRN:
+          type: string
+        OGRNIP:
+          type: string
+        STREET:
+          type: string
+        S:
+          type: string
+        E:
+          type: string
+        C:
+          type: string
+        L:
+          type: string
+        O:
+          type: string
+        OU:
+          type: string
+        CN:
+          type: string
+        T:
+          type: string
+        KPP:
+          type: string
+        SNILS:
+          type: string
+        G:
+          type: string
+        SN:
+          type: string
+    ValidationServiceErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+              minimum: 400
+              maximum: 599
+              description: Числовой код, совместимый с типом кода исключений validation-client.
+            message:
+              type: string
+              minLength: 1
