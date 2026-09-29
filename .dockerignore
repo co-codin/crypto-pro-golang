@@ -1,0 +1,6 @@
+.git
+uploads
+bin
+*.test
+README.md
+.github
