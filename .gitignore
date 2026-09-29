@@ -1,0 +1,7 @@
+/bin/
+/crypto-pro
+/fake-cryptcp
+*.test
+*.out
+.DS_Store
+/uploads/
